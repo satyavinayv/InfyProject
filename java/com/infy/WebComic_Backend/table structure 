@@ -1,3 +1,15 @@
+-- Drop the database if it exists
+DROP DATABASE IF EXISTS webcomic_db;
+
+-- Create the new database
+CREATE DATABASE webcomic_db;
+
+-- Use the newly created database
+USE webcomic_db;
+
+
+
+
 -- 1. Users Table
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
