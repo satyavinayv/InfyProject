@@ -1,0 +1,161 @@
+webcomic-platform/
+├── backend/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/
+│   │   │   │   └── com/
+│   │   │   │       └── webcomic/
+│   │   │   │           └── backend/
+│   │   │   │               ├── config/
+│   │   │   │               │   ├── AppConfig.java
+│   │   │   │               │   ├── SecurityConfig.java
+│   │   │   │               │   └── SwaggerConfig.java
+│   │   │   │               ├── controller/
+│   │   │   │               │   ├── AuthController.java
+│   │   │   │               │   ├── ChapterController.java
+│   │   │   │               │   ├── ComicController.java
+│   │   │   │               │   ├── CommentController.java
+│   │   │   │               │   ├── GenreController.java
+│   │   │   │               │   ├── LikeController.java
+│   │   │   │               │   ├── TagController.java
+│   │   │   │               │   └── UserController.java
+│   │   │   │               ├── dto/
+│   │   │   │               │   ├── ChapterCreateDTO.java
+│   │   │   │               │   ├── ChapterDTO.java
+│   │   │   │               │   ├── ChapterReorderDTO.java
+│   │   │   │               │   ├── ComicCreateDTO.java
+│   │   │   │               │   ├── ComicDTO.java
+│   │   │   │               │   ├── CommentCreateDTO.java
+│   │   │   │               │   ├── CommentDTO.java
+│   │   │   │               │   ├── GenreDTO.java
+│   │   │   │               │   ├── JwtResponseDTO.java
+│   │   │   │               │   ├── LoginDTO.java
+│   │   │   │               │   ├── PageDTO.java
+│   │   │   │               │   ├── TagDTO.java
+│   │   │   │               │   ├── UserDTO.java
+│   │   │   │               │   └── UserRegistrationDTO.java
+│   │   │   │               ├── entity/
+│   │   │   │               │   ├── Chapter.java
+│   │   │   │               │   ├── Comic.java
+│   │   │   │               │   ├── Comment.java
+│   │   │   │               │   ├── Genre.java
+│   │   │   │               │   ├── Like.java
+│   │   │   │               │   ├── Page.java
+│   │   │   │               │   ├── Subscription.java
+│   │   │   │               │   ├── Tag.java
+│   │   │   │               │   └── User.java
+│   │   │   │               ├── exception/
+│   │   │   │               │   ├── FileStorageException.java
+│   │   │   │               │   ├── GlobalExceptionHandler.java
+│   │   │   │               │   ├── ResourceAlreadyExistsException.java
+│   │   │   │               │   ├── ResourceNotFoundException.java
+│   │   │   │               │   └── UnauthorizedException.java
+│   │   │   │               ├── repository/
+│   │   │   │               │   ├── ChapterRepository.java
+│   │   │   │               │   ├── ComicRepository.java
+│   │   │   │               │   ├── CommentRepository.java
+│   │   │   │               │   ├── GenreRepository.java
+│   │   │   │               │   ├── LikeRepository.java
+│   │   │   │               │   ├── PageRepository.java
+│   │   │   │               │   ├── SubscriptionRepository.java
+│   │   │   │               │   ├── TagRepository.java
+│   │   │   │               │   └── UserRepository.java
+│   │   │   │               ├── security/
+│   │   │   │               │   ├── JwtAuthenticationEntryPoint.java
+│   │   │   │               │   ├── JwtAuthenticationFilter.java
+│   │   │   │               │   └── JwtTokenProvider.java
+│   │   │   │               ├── service/
+│   │   │   │               │   ├── AuthService.java
+│   │   │   │               │   ├── ChapterService.java
+│   │   │   │               │   ├── ComicService.java
+│   │   │   │               │   ├── CommentService.java
+│   │   │   │               │   ├── FileStorageService.java
+│   │   │   │               │   ├── GenreService.java
+│   │   │   │               │   ├── LikeService.java
+│   │   │   │               │   ├── TagService.java
+│   │   │   │               │   ├── UserDetailsServiceImpl.java
+│   │   │   │               │   └── UserService.java
+│   │   │   │               └── WebComicApplication.java
+│   │   │   └── resources/
+│   │   │       ├── application.properties
+│   │   │       ├── static/
+│   │   │       └── templates/
+│   │   └── test/
+│   │       └── java/
+│   │           └── com/
+│   │               └── webcomic/
+│   │                   └── backend/
+│   │                       └── WebComicApplicationTests.java
+│   ├── pom.xml
+│   └── uploads/
+└── frontend/
+    ├── public/
+    │   ├── favicon.ico
+    │   ├── index.html
+    │   ├── manifest.json
+    │   └── robots.txt
+    ├── src/
+    │   ├── components/
+    │   │   ├── auth/
+    │   │   │   ├── LoginForm.tsx
+    │   │   │   └── RegisterForm.tsx
+    │   │   ├── comics/
+    │   │   │   ├── ChapterList.tsx
+    │   │   │   ├── ComicCard.tsx
+    │   │   │   ├── ComicGrid.tsx
+    │   │   │   ├── CommentSection.tsx
+    │   │   │   └── PageViewer.tsx
+    │   │   ├── common/
+    │   │   │   ├── Alert.tsx
+    │   │   │   ├── Button.tsx
+    │   │   │   ├── Card.tsx
+    │   │   │   ├── FileUpload.tsx
+    │   │   │   ├── Loading.tsx
+    │   │   │   ├── Pagination.tsx
+    │   │   │   ├── ProtectedRoute.tsx
+    │   │   │   └── RoleBasedRoute.tsx
+    │   │   ├── creator/
+    │   │   │   ├── ChapterForm.tsx
+    │   │   │   ├── ChapterReorderTool.tsx
+    │   │   │   ├── ComicForm.tsx
+    │   │   │   └── CreatorStats.tsx
+    │   │   └── layout/
+    │   │       ├── Footer.tsx
+    │   │       ├── Header.tsx
+    │   │       └── Sidebar.tsx
+    │   ├── contexts/
+    │   │   └── AuthContext.tsx
+    │   ├── pages/
+    │   │   ├── auth/
+    │   │   │   ├── ForgotPasswordPage.tsx
+    │   │   │   ├── LoginPage.tsx
+    │   │   │   ├── RegisterPage.tsx
+    │   │   │   └── ResetPasswordPage.tsx
+    │   │   ├── comics/
+    │   │   │   ├── BrowseComicsPage.tsx
+    │   │   │   ├── ComicReadPage.tsx
+    │   │   │   ├── ComicViewPage.tsx
+    │   │   │   └── SearchResultsPage.tsx
+    │   │   ├── creator/
+    │   │   │   ├── ChapterReorderPage.tsx
+    │   │   │   ├── ComicEditPage.tsx
+    │   │   │   ├── ComicUploadPage.tsx
+    │   │   │   └── CreatorDashboardPage.tsx
+    │   │   ├── user/
+    │   │   │   └── ProfilePage.tsx
+    │   │   ├── HomePage.tsx
+    │   │   └── NotFoundPage.tsx
+    │   ├── services/
+    │   │   ├── api.ts
+    │   │   └── storage.ts
+    │   ├── types/
+    │   │   └── index.ts
+    │   ├── utils/
+    │   │   ├── formatters.ts
+    │   │   └── validators.ts
+    │   ├── App.tsx
+    │   ├── index.css
+    │   └── index.tsx
+    ├── package.json
+    └── tsconfig.json
+this is the whole front end and backend code structure you have given there is nothing called as statsService or userProfileUpdate in the backend 
