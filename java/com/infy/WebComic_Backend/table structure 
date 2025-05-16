@@ -1,0 +1,125 @@
+-- 1. Users Table
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('reader', 'creator', 'admin') DEFAULT 'reader',
+    bio TEXT,
+    avatar_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 2. User Follows Table
+CREATE TABLE user_follows (
+    follower_id INT,
+    followed_id INT,
+    PRIMARY KEY (follower_id, followed_id),
+    FOREIGN KEY (follower_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (followed_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 3. Comics Table
+CREATE TABLE comics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    description TEXT,
+    cover_image_url VARCHAR(255),
+    creator_id INT,
+    rating FLOAT DEFAULT 0,
+    views INT DEFAULT 0,
+    likes INT DEFAULT 0,
+    completed BOOLEAN DEFAULT FALSE,
+    subscription_required BOOLEAN DEFAULT FALSE,
+    subscription_price DECIMAL(10,2) DEFAULT 0.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- 4. Chapters Table
+CREATE TABLE chapters (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    comic_id INT,
+    title VARCHAR(100),
+    chapter_order INT,
+    thumbnail_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE
+);
+
+-- 5. Pages Table
+CREATE TABLE pages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    chapter_id INT,
+    page_number INT,
+    image_url VARCHAR(255),
+    FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+);
+
+-- 6. Comments Table
+CREATE TABLE comments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    comic_id INT,
+    user_id INT,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 7. Genres Table
+CREATE TABLE genres (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- 8. Comic Genres Join Table
+CREATE TABLE comic_genres (
+    comic_id INT,
+    genre_id INT,
+    PRIMARY KEY (comic_id, genre_id),
+    FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE,
+    FOREIGN KEY (genre_id) REFERENCES genres(id) ON DELETE CASCADE
+);
+
+-- 9. Tags Table
+CREATE TABLE tags (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- 10. Comic Tags Join Table
+CREATE TABLE comic_tags (
+    comic_id INT,
+    tag_id INT,
+    PRIMARY KEY (comic_id, tag_id),
+    FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+
+-- 11. Likes Table
+CREATE TABLE likes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    comic_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, comic_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (comic_id) REFERENCES comics(id) ON DELETE CASCADE
+);
+
+-- 12. Subscriptions Table
+CREATE TABLE subscriptions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    subscriber_id INT,
+    creator_id INT,
+    start_date DATE,
+    end_date DATE,
+    active BOOLEAN DEFAULT TRUE,
+    amount DECIMAL(10,2),
+    FOREIGN KEY (subscriber_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+);
