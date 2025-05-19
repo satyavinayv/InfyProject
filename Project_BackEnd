@@ -106,7 +106,1782 @@ public class AppConfig {
  }
 }
 
+--------------------------------------------------------------------------------------------------------------------------
 
+
+package com.infy.WebComic_Backend.config;
+
+import com.infy.WebComic_Backend.security.JwtAuthenticationEntryPoint;
+import com.infy.WebComic_Backend.security.JwtAuthenticationFilter;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    @Autowired
+    private JwtAuthenticationEntryPoint unauthorizedHandler;
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .cors().and().csrf().disable()
+            .exceptionHandling().authenticationEntryPoint(unauthorizedHandler).and()
+            .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
+            .authorizeHttpRequests()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/comics/public/**").permitAll()
+                .requestMatchers("/api/genres/**").permitAll()
+                .requestMatchers("/api/tags/**").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**", "/swagger-resources/**", "/webjars/**").permitAll()
+                .anyRequest().authenticated();
+
+        http.addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("authorization", "content-type", "x-auth-token"));
+        configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+}
+----------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.config;
+
+//SwaggerConfig.java
+
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+ @Bean
+ public OpenAPI customOpenAPI() {
+     final String securitySchemeName = "bearerAuth";
+     return new OpenAPI()
+             .info(new Info()
+                     .title("WebComic API")
+                     .version("1.0.0")
+                     .description("API for WebComic Platform"))
+             .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
+             .components(new Components()
+                     .addSecuritySchemes(securitySchemeName,
+                             new SecurityScheme()
+                                     .name(securitySchemeName)
+                                     .type(SecurityScheme.Type.HTTP)
+                                     .scheme("bearer")
+                                     .bearerFormat("JWT")));
+ }
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//AuthController.java
+
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.infy.WebComic_Backend.dto.JwtResponseDTO;
+import com.infy.WebComic_Backend.dto.LoginDTO;
+import com.infy.WebComic_Backend.dto.UserDTO;
+import com.infy.WebComic_Backend.dto.UserRegistrationDTO;
+import com.infy.WebComic_Backend.service.AuthService;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+ @Autowired
+ private AuthService authService;
+
+ @PostMapping("/register")
+ public ResponseEntity<UserDTO> registerUser(@Valid @RequestBody UserRegistrationDTO registrationDTO) {
+     UserDTO userDTO = authService.registerUser(registrationDTO);
+     return ResponseEntity.ok(userDTO);
+ }
+
+ @PostMapping("/login")
+ public ResponseEntity<JwtResponseDTO> authenticateUser(@Valid @RequestBody LoginDTO loginDTO) {
+     JwtResponseDTO jwtResponse = authService.authenticateUser(loginDTO);
+     return ResponseEntity.ok(jwtResponse);
+ }
+}
+-------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//ChapterController.java
+
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.infy.WebComic_Backend.dto.ChapterCreateDTO;
+import com.infy.WebComic_Backend.dto.ChapterDTO;
+import com.infy.WebComic_Backend.dto.ChapterReorderDTO;
+import com.infy.WebComic_Backend.dto.PageDTO;
+import com.infy.WebComic_Backend.service.ChapterService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/chapters")
+public class ChapterController {
+
+ @Autowired
+ private ChapterService chapterService;
+
+ @PostMapping("/comic/{comicId}")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<ChapterDTO> createChapter(@PathVariable Long comicId, @Valid @RequestBody ChapterCreateDTO chapterCreateDTO) {
+     ChapterDTO chapterDTO = chapterService.createChapter(comicId, chapterCreateDTO);
+     return ResponseEntity.ok(chapterDTO);
+ }
+
+ @PostMapping("/{chapterId}/pages")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<PageDTO> addPageToChapter(
+         @PathVariable Long chapterId,
+         @RequestParam("file") MultipartFile file,
+         @RequestParam("pageNumber") int pageNumber) {
+     PageDTO pageDTO = chapterService.addPageToChapter(chapterId, file, pageNumber);
+     return ResponseEntity.ok(pageDTO);
+ }
+
+ @GetMapping("/{chapterId}")
+ public ResponseEntity<ChapterDTO> getChapterById(@PathVariable Long chapterId) {
+     ChapterDTO chapterDTO = chapterService.getChapterById(chapterId);
+     return ResponseEntity.ok(chapterDTO);
+ }
+
+ @GetMapping("/comic/{comicId}")
+ public ResponseEntity<List<ChapterDTO>> getChaptersByComicId(@PathVariable Long comicId) {
+     List<ChapterDTO> chapters = chapterService.getChaptersByComicId(comicId);
+     return ResponseEntity.ok(chapters);
+ }
+
+ @GetMapping("/{chapterId}/pages")
+ public ResponseEntity<List<PageDTO>> getPagesByChapterId(@PathVariable Long chapterId) {
+     List<PageDTO> pages = chapterService.getPagesByChapterId(chapterId);
+     return ResponseEntity.ok(pages);
+ }
+
+ @PutMapping("/comic/{comicId}/reorder")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<List<ChapterDTO>> reorderChapters(
+         @PathVariable Long comicId,
+         @Valid @RequestBody ChapterReorderDTO reorderDTO) {
+     List<ChapterDTO> chapters = chapterService.reorderChapters(comicId, reorderDTO);
+     return ResponseEntity.ok(chapters);
+ }
+
+ @DeleteMapping("/{chapterId}")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<?> deleteChapter(@PathVariable Long chapterId) {
+     chapterService.deleteChapter(chapterId);
+     return ResponseEntity.ok().build();
+ }
+}
+------------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//ComicController.java
+
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.infy.WebComic_Backend.dto.ComicCreateDTO;
+import com.infy.WebComic_Backend.dto.ComicDTO;
+import com.infy.WebComic_Backend.service.ComicService;
+import com.infy.WebComic_Backend.service.FileStorageService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/comics")
+public class ComicController {
+
+ @Autowired
+ private ComicService comicService;
+
+ @Autowired
+ private FileStorageService fileStorageService;
+
+ @PostMapping
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<ComicDTO> createComic(@Valid @RequestBody ComicCreateDTO comicCreateDTO) {
+     ComicDTO comicDTO = comicService.createComic(comicCreateDTO);
+     return ResponseEntity.ok(comicDTO);
+ }
+
+ @PutMapping("/{id}")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<ComicDTO> updateComic(@PathVariable Long id, @Valid @RequestBody ComicCreateDTO comicUpdateDTO) {
+     ComicDTO comicDTO = comicService.updateComic(id, comicUpdateDTO);
+     return ResponseEntity.ok(comicDTO);
+ }
+
+ @PostMapping("/{id}/cover")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<String> uploadCoverImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+     String fileName = fileStorageService.storeFile(file);
+     // Update comic cover image URL
+     // This would be implemented in the ComicService
+     return ResponseEntity.ok(fileName);
+ }
+
+ @GetMapping("/{id}")
+ public ResponseEntity<ComicDTO> getComicById(@PathVariable Long id) {
+     ComicDTO comicDTO = comicService.getComicById(id);
+     return ResponseEntity.ok(comicDTO);
+ }
+
+ @GetMapping("/creator/{creatorId}")
+ public ResponseEntity<Page<ComicDTO>> getComicsByCreator(@PathVariable Long creatorId, Pageable pageable) {
+     Page<ComicDTO> comics = comicService.getComicsByCreator(creatorId, pageable);
+     return ResponseEntity.ok(comics);
+ }
+
+ @GetMapping("/search")
+ public ResponseEntity<Page<ComicDTO>> searchComics(@RequestParam String query, Pageable pageable) {
+     Page<ComicDTO> comics = comicService.searchComics(query, pageable);
+     return ResponseEntity.ok(comics);
+ }
+
+ @GetMapping("/genre/{genreName}")
+ public ResponseEntity<Page<ComicDTO>> getComicsByGenre(@PathVariable String genreName, Pageable pageable) {
+     Page<ComicDTO> comics = comicService.getComicsByGenre(genreName, pageable);
+     return ResponseEntity.ok(comics);
+ }
+
+ @GetMapping("/tag/{tagName}")
+ public ResponseEntity<Page<ComicDTO>> getComicsByTag(@PathVariable String tagName, Pageable pageable) {
+     Page<ComicDTO> comics = comicService.getComicsByTag(tagName, pageable);
+     return ResponseEntity.ok(comics);
+ }
+
+ @GetMapping("/trending")
+ public ResponseEntity<List<ComicDTO>> getTrendingComics(@RequestParam(defaultValue = "5") int limit) {
+     List<ComicDTO> comics = comicService.getTrendingComics(limit);
+     return ResponseEntity.ok(comics);
+ }
+
+ @GetMapping("/recent")
+ public ResponseEntity<Page<ComicDTO>> getRecentComics(Pageable pageable) {
+     Page<ComicDTO> comics = comicService.getRecentComics(pageable);
+     return ResponseEntity.ok(comics);
+ }
+
+ @DeleteMapping("/{id}")
+ @PreAuthorize("hasRole('CREATOR')")
+ public ResponseEntity<?> deleteComic(@PathVariable Long id) {
+     comicService.deleteComic(id);
+     return ResponseEntity.ok().build();
+ }
+}
+-------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//CommentController.java
+
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.infy.WebComic_Backend.dto.CommentCreateDTO;
+import com.infy.WebComic_Backend.dto.CommentDTO;
+import com.infy.WebComic_Backend.service.CommentService;
+
+@RestController
+@RequestMapping("/api/comments")
+public class CommentController {
+
+ @Autowired
+ private CommentService commentService;
+
+ @PostMapping("/comic/{comicId}")
+ public ResponseEntity<CommentDTO> createComment(
+         @PathVariable Long comicId,
+         @Valid @RequestBody CommentCreateDTO commentCreateDTO) {
+     CommentDTO commentDTO = commentService.createComment(comicId, commentCreateDTO);
+     return ResponseEntity.ok(commentDTO);
+ }
+
+ @GetMapping("/comic/{comicId}")
+ public ResponseEntity<Page<CommentDTO>> getCommentsByComicId(
+         @PathVariable Long comicId,
+         Pageable pageable) {
+     Page<CommentDTO> comments = commentService.getCommentsByComicId(comicId, pageable);
+     return ResponseEntity.ok(comments);
+ }
+
+ @DeleteMapping("/{commentId}")
+ public ResponseEntity<?> deleteComment(@PathVariable Long commentId) {
+     commentService.deleteComment(commentId);
+     return ResponseEntity.ok().build();
+ }
+}
+------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//GenreController.java
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.infy.WebComic_Backend.dto.GenreDTO;
+import com.infy.WebComic_Backend.service.GenreService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/genres")
+public class GenreController {
+
+ @Autowired
+ private GenreService genreService;
+
+ @GetMapping
+ public ResponseEntity<List<GenreDTO>> getAllGenres() {
+     List<GenreDTO> genres = genreService.getAllGenres();
+     return ResponseEntity.ok(genres);
+ }
+}
+---------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//LikeController.java
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.infy.WebComic_Backend.service.LikeService;
+
+@RestController
+@RequestMapping("/api/likes")
+public class LikeController {
+
+ @Autowired
+ private LikeService likeService;
+
+ @PostMapping("/comic/{comicId}")
+ public ResponseEntity<?> likeComic(@PathVariable Long comicId) {
+     likeService.likeComic(comicId);
+     return ResponseEntity.ok().build();
+ }
+
+ @DeleteMapping("/comic/{comicId}")
+ public ResponseEntity<?> unlikeComic(@PathVariable Long comicId) {
+     likeService.unlikeComic(comicId);
+     return ResponseEntity.ok().build();
+ }
+
+ @GetMapping("/comic/{comicId}/status")
+ public ResponseEntity<Boolean> hasUserLikedComic(@PathVariable Long comicId) {
+     boolean hasLiked = likeService.hasUserLikedComic(comicId);
+     return ResponseEntity.ok(hasLiked);
+ }
+}
+-----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//TagController.java
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.infy.WebComic_Backend.dto.TagDTO;
+import com.infy.WebComic_Backend.service.TagService;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/tags")
+public class TagController {
+
+ @Autowired
+ private TagService tagService;
+
+ @GetMapping
+ public ResponseEntity<List<TagDTO>> getAllTags() {
+     List<TagDTO> tags = tagService.getAllTags();
+     return ResponseEntity.ok(tags);
+ }
+}
+-------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.controller;
+
+//UserController.java
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.infy.WebComic_Backend.dto.UserDTO;
+import com.infy.WebComic_Backend.service.UserService;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+ @Autowired
+ private UserService userService;
+
+ @GetMapping("/me")
+ public ResponseEntity<UserDTO> getCurrentUser() {
+     UserDTO userDTO = userService.getCurrentUser();
+     return ResponseEntity.ok(userDTO);
+ }
+
+ @GetMapping("/{id}")
+ public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+     UserDTO userDTO = userService.getUserById(id);
+     return ResponseEntity.ok(userDTO);
+ }
+
+ @PostMapping("/{id}/follow")
+ public ResponseEntity<?> followUser(@PathVariable Long id) {
+     userService.followUser(id);
+     return ResponseEntity.ok().build();
+ }
+
+ @DeleteMapping("/{id}/follow")
+ public ResponseEntity<?> unfollowUser(@PathVariable Long id) {
+     userService.unfollowUser(id);
+     return ResponseEntity.ok().build();
+ }
+}
+--------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//ChapterCreateDTO.java
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ChapterCreateDTO {
+ @NotBlank(message = "Title is required")
+ @Size(max = 100, message = "Title must be less than 100 characters")
+ private String title;
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//ChapterDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ChapterDTO {
+ private Long id;
+ private Long comicId;
+ private String title;
+ private int order;
+ private String thumbnailUrl;
+ private LocalDateTime createdAt;
+ private int pageCount;
+}
+--------------------------------------------------------------------------------------------------------------
+package com.infy.WebComic_Backend.dto;
+
+//ChapterReorderDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ChapterReorderDTO {
+ private List<ChapterOrderItem> chapterOrders;
+ 
+ @Data
+ @NoArgsConstructor
+ @AllArgsConstructor
+ public static class ChapterOrderItem {
+     private Long id;
+     private int order;
+ }
+}
+----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//ComicCreateDTO.java
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ComicCreateDTO {
+ @NotBlank(message = "Title is required")
+ @Size(max = 100, message = "Title must be less than 100 characters")
+ private String title;
+ 
+ @NotBlank(message = "Description is required")
+ @Size(max = 1000, message = "Description must be less than 1000 characters")
+ private String description;
+ 
+ private List<String> genres;
+ 
+ private List<String> tags;
+ 
+ private boolean subscriptionRequired;
+ 
+ private Double subscriptionPrice;
+}
+--------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//ComicDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ComicDTO {
+ private Long id;
+ private String title;
+ private String description;
+ private String coverImageUrl;
+ private Long creatorId;
+ private String creatorName;
+ private List<String> genres;
+ private List<String> tags;
+ private double rating;
+ private int views;
+ private int likes;
+ private boolean completed;
+ private boolean subscriptionRequired;
+ private Double subscriptionPrice;
+ private LocalDateTime createdAt;
+ private LocalDateTime updatedAt;
+ private int chapterCount;
+}
+-------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//CommentCreateDTO.java
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CommentCreateDTO {
+ @NotBlank(message = "Content is required")
+ @Size(max = 1000, message = "Comment must be less than 1000 characters")
+ private String content;
+}
+--------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//CommentDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CommentDTO {
+ private Long id;
+ private Long comicId;
+ private Long userId;
+ private String username;
+ private String content;
+ private LocalDateTime createdAt;
+}
+--------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//GenreDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class GenreDTO {
+ private Long id;
+ private String name;
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//JwtResponseDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class JwtResponseDTO {
+ private String token;
+ private String type = "Bearer";
+ private Long id;
+ private String username;
+ private String email;
+ private String role;
+ 
+ public JwtResponseDTO(String token, Long id, String username, String email, String role) {
+     this.token = token;
+     this.id = id;
+     this.username = username;
+     this.email = email;
+     this.role = role;
+ }
+}
+----------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//LoginDTO.java
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class LoginDTO {
+ @NotBlank(message = "Email is required")
+ private String email;
+ 
+ @NotBlank(message = "Password is required")
+ private String password;
+}
+----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//PageDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class PageDTO {
+ private Long id;
+ private Long chapterId;
+ private int pageNumber;
+ private String imageUrl;
+}
+------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//TagDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class TagDTO {
+ private Long id;
+ private String name;
+}
+---------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//UserDTO.java
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class UserDTO {
+ private Long id;
+ private String username;
+ private String email;
+ private String role;
+ private String bio;
+ private String avatarUrl;
+ private LocalDateTime createdAt;
+ private int followersCount;
+ private int followingCount;
+}
+----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.dto;
+
+//UserRegistrationDTO.java
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class UserRegistrationDTO {
+ @NotBlank(message = "Username is required")
+ @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
+ private String username;
+ 
+ @NotBlank(message = "Email is required")
+ @Email(message = "Please provide a valid email address")
+ private String email;
+ 
+ @NotBlank(message = "Password is required")
+ @Size(min = 6, message = "Password must be at least 6 characters long")
+ private String password;
+ 
+ @NotBlank(message = "Role is required")
+ @Pattern(regexp = "ROLE_READER|ROLE_CREATOR", message = "Role must be either ROLE_READER or ROLE_CREATOR")
+ private String role;
+}
+----------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Chapter.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "chapters")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Chapter {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @ManyToOne
+ @JoinColumn(name = "comic_id", nullable = false)
+ private Comic comic;
+ 
+ @Column(nullable = false)
+ private String title;
+ 
+ @Column(name = "chapter_order", nullable = false)
+ private int order;
+ 
+ private String thumbnailUrl;
+ 
+ @Column(nullable = false)
+ private LocalDateTime createdAt;
+ 
+ private LocalDateTime updatedAt;
+ 
+ @OneToMany(mappedBy = "chapter", cascade = CascadeType.ALL, orphanRemoval = true)
+ @OrderBy("pageNumber ASC")
+ private List<Page> pages = new ArrayList<>();
+ 
+ @PrePersist
+ protected void onCreate() {
+     createdAt = LocalDateTime.now();
+ }
+ 
+ @PreUpdate
+ protected void onUpdate() {
+     updatedAt = LocalDateTime.now();
+ }
+}
+------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Comic.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@Entity
+@Table(name = "comics")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Comic {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @Column(nullable = false)
+ private String title;
+ 
+ @Column(nullable = false, length = 1000)
+ private String description;
+ 
+ private String coverImageUrl;
+ 
+ @ManyToOne
+ @JoinColumn(name = "creator_id", nullable = false)
+ private User creator;
+ 
+ @ManyToMany
+ @JoinTable(
+     name = "comic_genres",
+     joinColumns = @JoinColumn(name = "comic_id"),
+     inverseJoinColumns = @JoinColumn(name = "genre_id")
+ )
+ private Set<Genre> genres = new HashSet<>();
+ 
+ @ManyToMany
+ @JoinTable(
+     name = "comic_tags",
+     joinColumns = @JoinColumn(name = "comic_id"),
+     inverseJoinColumns = @JoinColumn(name = "tag_id")
+ )
+ private Set<Tag> tags = new HashSet<>();
+ 
+ private double rating;
+ 
+ private int views;
+ 
+ private int likes;
+ 
+ private boolean completed;
+ 
+ private boolean subscriptionRequired;
+ 
+ private Double subscriptionPrice;
+ 
+ @Column(nullable = false)
+ private LocalDateTime createdAt;
+ 
+ private LocalDateTime updatedAt;
+ 
+ @OneToMany(mappedBy = "comic", cascade = CascadeType.ALL, orphanRemoval = true)
+ @OrderBy("order ASC")
+ private List<Chapter> chapters = new ArrayList<>();
+ 
+ @OneToMany(mappedBy = "comic", cascade = CascadeType.ALL, orphanRemoval = true)
+ private List<Comment> comments = new ArrayList<>();
+ 
+ @PrePersist
+ protected void onCreate() {
+     createdAt = LocalDateTime.now();
+ }
+ 
+ @PreUpdate
+ protected void onUpdate() {
+     updatedAt = LocalDateTime.now();
+ }
+}
+---------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Comment.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "comments")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Comment {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @ManyToOne
+ @JoinColumn(name = "comic_id", nullable = false)
+ private Comic comic;
+ 
+ @ManyToOne
+ @JoinColumn(name = "user_id", nullable = false)
+ private User user;
+ 
+ @Column(nullable = false, length = 1000)
+ private String content;
+ 
+ @Column(nullable = false)
+ private LocalDateTime createdAt;
+ 
+ @PrePersist
+ protected void onCreate() {
+     createdAt = LocalDateTime.now();
+ }
+}
+------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Genre.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "genres")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Genre {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @Column(nullable = false, unique = true)
+ private String name;
+ 
+ @ManyToMany(mappedBy = "genres")
+ private Set<Comic> comics = new HashSet<>();
+}
+---------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Like.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "likes", uniqueConstraints = {
+ @UniqueConstraint(columnNames = {"user_id", "comic_id"})
+})
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Like {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @ManyToOne
+ @JoinColumn(name = "user_id", nullable = false)
+ private User user;
+ 
+ @ManyToOne
+ @JoinColumn(name = "comic_id", nullable = false)
+ private Comic comic;
+ 
+ @Column(nullable = false)
+ private LocalDateTime createdAt;
+ 
+ @PrePersist
+ protected void onCreate() {
+     createdAt = LocalDateTime.now();
+ }
+}
+-----------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Page.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "pages")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Page {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @ManyToOne
+ @JoinColumn(name = "chapter_id", nullable = false)
+ private Chapter chapter;
+ 
+ @Column(nullable = false)
+ private int pageNumber;
+ 
+ @Column(nullable = false)
+ private String imageUrl;
+}
+------------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Subscription.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "subscriptions")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Subscription {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @ManyToOne
+ @JoinColumn(name = "subscriber_id", nullable = false)
+ private User subscriber;
+ 
+ @ManyToOne
+ @JoinColumn(name = "creator_id", nullable = false)
+ private User creator;
+ 
+ @Column(nullable = false)
+ private LocalDateTime startDate;
+ 
+ private LocalDateTime endDate;
+ 
+ private boolean active;
+ 
+ @Column(nullable = false)
+ private double amount;
+ 
+ @PrePersist
+ protected void onCreate() {
+     startDate = LocalDateTime.now();
+     active = true;
+ }
+}
+-----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//Tag.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "tags")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Tag {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @Column(nullable = false, unique = true)
+ private String name;
+ 
+ @ManyToMany(mappedBy = "tags")
+ private Set<Comic> comics = new HashSet<>();
+}
+----------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.entity;
+
+//User.java
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
+
+@Entity
+@Table(name = "users")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class User {
+ @Id
+ @GeneratedValue(strategy = GenerationType.IDENTITY)
+ private Long id;
+ 
+ @Column(nullable = false, unique = true)
+ private String username;
+ 
+ @Column(nullable = false, unique = true)
+ private String email;
+ 
+ @Column(nullable = false)
+ private String password;
+ 
+ @Column(nullable = false)
+ private String role; // ROLE_READER or ROLE_CREATOR
+ 
+ private String bio;
+ 
+ private String avatarUrl;
+ 
+ @Column(nullable = false)
+ private LocalDateTime createdAt;
+ 
+ private LocalDateTime updatedAt;
+ 
+ @OneToMany(mappedBy = "creator", cascade = CascadeType.ALL)
+ private Set<Comic> comics = new HashSet<>();
+ 
+ @ManyToMany
+ @JoinTable(
+     name = "user_follows",
+     joinColumns = @JoinColumn(name = "follower_id"),
+     inverseJoinColumns = @JoinColumn(name = "followed_id")
+ )
+ private Set<User> following = new HashSet<>();
+ 
+ @ManyToMany(mappedBy = "following")
+ private Set<User> followers = new HashSet<>();
+ 
+ @PrePersist
+ protected void onCreate() {
+     createdAt = LocalDateTime.now();
+ }
+ 
+ @PreUpdate
+ protected void onUpdate() {
+     updatedAt = LocalDateTime.now();
+ }
+}
+------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.exception;
+
+//FileStorageException.java
+
+public class FileStorageException extends RuntimeException {
+ public FileStorageException(String message) {
+     super(message);
+ }
+
+ public FileStorageException(String message, Throwable cause) {
+     super(message, cause);
+ }
+}
+-----------------------------------------------------------------------------------------------------------------
+
+
+package com.infy.WebComic_Backend.exception;
+
+//GlobalExceptionHandler.java
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.context.request.WebRequest;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+ @ExceptionHandler(ResourceNotFoundException.class)
+ public ResponseEntity<?> resourceNotFoundException(ResourceNotFoundException ex, WebRequest request) {
+     ErrorDetails errorDetails = new ErrorDetails(new Date(), ex.getMessage(), request.getDescription(false));
+     return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
+ }
+
+ @ExceptionHandler(ResourceAlreadyExistsException.class)
+ public ResponseEntity<?> resourceAlreadyExistsException(ResourceAlreadyExistsException ex, WebRequest request) {
+     ErrorDetails errorDetails = new ErrorDetails(new Date(), ex.getMessage(), request.getDescription(false));
+     return new ResponseEntity<>(errorDetails, HttpStatus.CONFLICT);
+ }
+
+ @ExceptionHandler(UnauthorizedException.class)
+ public ResponseEntity<?> unauthorizedException(UnauthorizedException ex, WebRequest request) {
+     ErrorDetails errorDetails = new ErrorDetails(new Date(), ex.getMessage(), request.getDescription(false));
+     return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
+ }
+
+ @ExceptionHandler(FileStorageException.class)
+ public ResponseEntity<?> fileStorageException(FileStorageException ex, WebRequest request) {
+     ErrorDetails errorDetails = new ErrorDetails(new Date(), ex.getMessage(), request.getDescription(false));
+     return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+ }
+
+ @ExceptionHandler(MethodArgumentNotValidException.class)
+ public ResponseEntity<?> handleValidationExceptions(MethodArgumentNotValidException ex) {
+     Map<String, String> errors = new HashMap<>();
+     ex.getBindingResult().getAllErrors().forEach((error) -> {
+         String fieldName = ((FieldError) error).getField();
+         String errorMessage = error.getDefaultMessage();
+         errors.put(fieldName, errorMessage);
+     });
+     return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+ }
+
+ @ExceptionHandler(Exception.class)
+ public ResponseEntity<?> globalExceptionHandler(Exception ex, WebRequest request) {
+     ErrorDetails errorDetails = new ErrorDetails(new Date(), ex.getMessage(), request.getDescription(false));
+     return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
+ }
+
+ public static class ErrorDetails {
+     private Date timestamp;
+     private String message;
+     private String details;
+
+     public ErrorDetails(Date timestamp, String message, String details) {
+         this.timestamp = timestamp;
+         this.message = message;
+         this.details = details;
+     }
+
+     public Date getTimestamp() {
+         return timestamp;
+     }
+
+     public String getMessage() {
+         return message;
+     }
+
+     public String getDetails() {
+         return details;
+     }
+ }
+}
+--------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.exception;
+
+//ResourceAlreadyExistsException.java
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.CONFLICT)
+public class ResourceAlreadyExistsException extends RuntimeException {
+ public ResourceAlreadyExistsException(String message) {
+     super(message);
+ }
+}
+--------------------------------------------------------------------------------------------------------------
+package com.infy.WebComic_Backend.exception;
+
+//ResourceNotFoundException.java
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class ResourceNotFoundException extends RuntimeException {
+ public ResourceNotFoundException(String message) {
+     super(message);
+ }
+}
+----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.exception;
+
+//UnauthorizedException.java
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.FORBIDDEN)
+public class UnauthorizedException extends RuntimeException {
+ public UnauthorizedException(String message) {
+     super(message);
+ }
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//ChapterRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Chapter;
+import com.infy.WebComic_Backend.entity.Comic;
+
+import java.util.List;
+
+public interface ChapterRepository extends JpaRepository<Chapter, Long> {
+ List<Chapter> findByComicOrderByOrderAsc(Comic comic);
+ int countByComic(Comic comic);
+}
+-----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//ComicRepository.java
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import com.infy.WebComic_Backend.entity.Comic;
+import com.infy.WebComic_Backend.entity.Genre;
+import com.infy.WebComic_Backend.entity.Tag;
+import com.infy.WebComic_Backend.entity.User;
+
+import java.util.List;
+
+public interface ComicRepository extends JpaRepository<Comic, Long> {
+ Page<Comic> findByCreator(User creator, Pageable pageable);
+ 
+ Page<Comic> findByGenresContaining(Genre genre, Pageable pageable);
+ 
+ Page<Comic> findByTagsContaining(Tag tag, Pageable pageable);
+ 
+ @Query("SELECT c FROM Comic c WHERE " +
+        "LOWER(c.title) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+        "LOWER(c.description) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+        "LOWER(c.creator.username) LIKE LOWER(CONCAT('%', :query, '%'))")
+ Page<Comic> search(String query, Pageable pageable);
+ 
+ @Query("SELECT c FROM Comic c ORDER BY c.views DESC")
+ List<Comic> findTrendingComics(Pageable pageable);
+ 
+ @Query("SELECT c FROM Comic c ORDER BY c.createdAt DESC")
+ Page<Comic> findRecentComics(Pageable pageable);
+}
+--------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//CommentRepository.java
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Comic;
+import com.infy.WebComic_Backend.entity.Comment;
+
+public interface CommentRepository extends JpaRepository<Comment, Long> {
+ Page<Comment> findByComicOrderByCreatedAtDesc(Comic comic, Pageable pageable);
+}
+---------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//GenreRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Genre;
+
+import java.util.Optional;
+
+public interface GenreRepository extends JpaRepository<Genre, Long> {
+ Optional<Genre> findByNameIgnoreCase(String name);
+}
+-----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//LikeRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Comic;
+import com.infy.WebComic_Backend.entity.Like;
+import com.infy.WebComic_Backend.entity.User;
+
+public interface LikeRepository extends JpaRepository<Like, Long> {
+ boolean existsByUserAndComic(User user, Comic comic);
+ void deleteByUserAndComic(User user, Comic comic);
+ int countByComic(Comic comic);
+}
+--------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//PageRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Chapter;
+import com.infy.WebComic_Backend.entity.Page;
+
+import java.util.List;
+
+public interface PageRepository extends JpaRepository<Page, Long> {
+ List<Page> findByChapterOrderByPageNumberAsc(Chapter chapter);
+}
+--------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//SubscriptionRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Subscription;
+import com.infy.WebComic_Backend.entity.User;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+ List<Subscription> findBySubscriberAndActiveTrue(User subscriber);
+ List<Subscription> findByCreatorAndActiveTrue(User creator);
+ Optional<Subscription> findBySubscriberAndCreatorAndActiveTrue(User subscriber, User creator);
+ int countByCreatorAndActiveTrue(User creator);
+}
+-------------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//TagRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.Tag;
+
+import java.util.Optional;
+
+public interface TagRepository extends JpaRepository<Tag, Long> {
+ Optional<Tag> findByNameIgnoreCase(String name);
+}
+---------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.repository;
+
+//UserRepository.java
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.infy.WebComic_Backend.entity.User;
+
+import java.util.Optional;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+ Optional<User> findByEmail(String email);
+ Optional<User> findByUsername(String username);
+ boolean existsByEmail(String email);
+ boolean existsByUsername(String username);
+}
+
+-------------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.security;
+
+//JwtAuthenticationEntryPoint.java
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+@Component
+public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+ @Override
+ public void commence(HttpServletRequest request, HttpServletResponse response,
+                      AuthenticationException authException) throws IOException, ServletException {
+     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+ }
+}
+--------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.security;
+
+//JwtAuthenticationFilter.java
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.util.StringUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.infy.WebComic_Backend.service.UserDetailsServiceImpl;
+
+import java.io.IOException;
+
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+ @Autowired
+ private JwtTokenProvider tokenProvider;
+
+ @Autowired
+ private UserDetailsServiceImpl userDetailsService;
+
+ @Override
+ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+         throws ServletException, IOException {
+     try {
+         String jwt = getJwtFromRequest(request);
+
+         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+             String username = tokenProvider.getUsernameFromJWT(jwt);
+
+             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                     userDetails, null, userDetails.getAuthorities());
+             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+             SecurityContextHolder.getContext().setAuthentication(authentication);
+         }
+     } catch (Exception ex) {
+         logger.error("Could not set user authentication in security context", ex);
+     }
+
+     filterChain.doFilter(request, response);
+ }
+
+ private String getJwtFromRequest(HttpServletRequest request) {
+     String bearerToken = request.getHeader("Authorization");
+     if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+         return bearerToken.substring(7);
+     }
+     return null;
+ }
+}
+-----------------------------------------------------------------------------------------------------------------
+
+package com.infy.WebComic_Backend.security;
+
+//JwtTokenProvider.java
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+
+import java.util.Date;
+
+import javax.crypto.SecretKey;
+
+@Component
+
+public class JwtTokenProvider {
+
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
+
+    private SecretKey key;
+
+    @Value("${jwt.secret}")
+    public void setJwtSecret(String jwtSecret) {
+        // Decode base64 string and create key for HS512
+        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+        this.key = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    @Value("${jwt.expiration}")
+    private int jwtExpirationInMs;
+
+    public String generateToken(Authentication authentication) {
+        UserDetails userPrincipal = (UserDetails) authentication.getPrincipal();
+
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
+
+        return Jwts.builder()
+                .setSubject(userPrincipal.getUsername())
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(key, SignatureAlgorithm.HS512)  // Use SecretKey here
+                .compact();
+    }
+
+    public String getUsernameFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)   // Use SecretKey here
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return claims.getSubject();
+    }
+
+    public boolean validateToken(String authToken) {
+        try {
+            Jwts.parserBuilder()
+                .setSigningKey(key)  // Use SecretKey here
+                .build()
+                .parseClaimsJws(authToken);
+            return true;
+        } catch (SignatureException ex) {
+            logger.error("Invalid JWT signature");
+        } catch (MalformedJwtException ex) {
+            logger.error("Invalid JWT token");
+        } catch (ExpiredJwtException ex) {
+            logger.error("Expired JWT token");
+        } catch (UnsupportedJwtException ex) {
+            logger.error("Unsupported JWT token");
+        } catch (IllegalArgumentException ex) {
+            logger.error("JWT claims string is empty.");
+        }
+        return false;
+    }
+}
 
 
 
