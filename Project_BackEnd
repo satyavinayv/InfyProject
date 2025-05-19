@@ -1,0 +1,93 @@
+webcomic-platform/
+├── backend/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/
+│   │   │   │   └── com/
+│   │   │   │       └── webcomic/
+│   │   │   │           └── backend/
+│   │   │   │               ├── config/
+│   │   │   │               │   ├── AppConfig.java
+│   │   │   │               │   ├── SecurityConfig.java
+│   │   │   │               │   └── SwaggerConfig.java
+│   │   │   │               ├── controller/
+│   │   │   │               │   ├── AuthController.java
+│   │   │   │               │   ├── ChapterController.java
+│   │   │   │               │   ├── ComicController.java
+│   │   │   │               │   ├── CommentController.java
+│   │   │   │               │   ├── GenreController.java
+│   │   │   │               │   ├── LikeController.java
+│   │   │   │               │   ├── TagController.java
+│   │   │   │               │   └── UserController.java
+│   │   │   │               ├── dto/
+│   │   │   │               │   ├── ChapterCreateDTO.java
+│   │   │   │               │   ├── ChapterDTO.java
+│   │   │   │               │   ├── ChapterReorderDTO.java
+│   │   │   │               │   ├── ComicCreateDTO.java
+│   │   │   │               │   ├── ComicDTO.java
+│   │   │   │               │   ├── CommentCreateDTO.java
+│   │   │   │               │   ├── CommentDTO.java
+│   │   │   │               │   ├── GenreDTO.java
+│   │   │   │               │   ├── JwtResponseDTO.java
+│   │   │   │               │   ├── LoginDTO.java
+│   │   │   │               │   ├── PageDTO.java
+│   │   │   │               │   ├── TagDTO.java
+│   │   │   │               │   ├── UserDTO.java
+│   │   │   │               │   └── UserRegistrationDTO.java
+│   │   │   │               ├── entity/
+│   │   │   │               │   ├── Chapter.java
+│   │   │   │               │   ├── Comic.java
+│   │   │   │               │   ├── Comment.java
+│   │   │   │               │   ├── Genre.java
+│   │   │   │               │   ├── Like.java
+│   │   │   │               │   ├── Page.java
+│   │   │   │               │   ├── Subscription.java
+│   │   │   │               │   ├── Tag.java
+│   │   │   │               │   └── User.java
+│   │   │   │               ├── exception/
+│   │   │   │               │   ├── FileStorageException.java
+│   │   │   │               │   ├── GlobalExceptionHandler.java
+│   │   │   │               │   ├── ResourceAlreadyExistsException.java
+│   │   │   │               │   ├── ResourceNotFoundException.java
+│   │   │   │               │   └── UnauthorizedException.java
+│   │   │   │               ├── repository/
+│   │   │   │               │   ├── ChapterRepository.java
+│   │   │   │               │   ├── ComicRepository.java
+│   │   │   │               │   ├── CommentRepository.java
+│   │   │   │               │   ├── GenreRepository.java
+│   │   │   │               │   ├── LikeRepository.java
+│   │   │   │               │   ├── PageRepository.java
+│   │   │   │               │   ├── SubscriptionRepository.java
+│   │   │   │               │   ├── TagRepository.java
+│   │   │   │               │   └── UserRepository.java
+│   │   │   │               ├── security/
+│   │   │   │               │   ├── JwtAuthenticationEntryPoint.java
+│   │   │   │               │   ├── JwtAuthenticationFilter.java
+│   │   │   │               │   └── JwtTokenProvider.java
+│   │   │   │               ├── service/
+│   │   │   │               │   ├── AuthService.java
+│   │   │   │               │   ├── ChapterService.java
+│   │   │   │               │   ├── ComicService.java
+│   │   │   │               │   ├── CommentService.java
+│   │   │   │               │   ├── FileStorageService.java
+│   │   │   │               │   ├── GenreService.java
+│   │   │   │               │   ├── LikeService.java
+│   │   │   │               │   ├── TagService.java
+│   │   │   │               │   ├── UserDetailsServiceImpl.java
+│   │   │   │               │   └── UserService.java
+│   │   │   │               └── WebComicApplication.java
+│   │   │   └── resources/
+│   │   │       ├── application.properties
+│   │   │       ├── static/
+│   │   │       └── templates/
+│   │   └── test/
+│   │       └── java/
+│   │           └── com/
+│   │               └── webcomic/
+│   │                   └── backend/
+│   │                       └── WebComicApplicationTests.java
+│   ├── pom.xml
+
+
+
+
