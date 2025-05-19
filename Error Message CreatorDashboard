@@ -1,0 +1,1231 @@
+export const creatorAPI = {
+getCreatorDashboard: () => api.get("/creator/dashboard"),
+getCreatorAnalytics: (comicId?: string) => api.get(comicId ? /creator/analytics/${comicId} : "/creator/analytics"),
+getCreatorComics: (page = 0, size = 10) => api.get(/creator/comics?page=${page}&size=${size}),
+getCreatorSubscribers: (page = 0, size = 10) => api.get(/creator/subscribers?page=${page}&size=${size}),
+setSubscriptionPrice: (price: number) => api.post("/creator/subscription", { price }),
+}
+
+"use client"
+
+import type React from "react"
+import { useState } from "react"
+import { Link, useNavigate, useLocation } from "react-router-dom"
+import { useAuth } from "../../contexts/AuthContext"
+
+const Header: React.FC = () => {
+const { currentUser, isAuthenticated, isInitialized, logout } = useAuth()
+const navigate = useNavigate()
+const location = useLocation()
+const \[searchQuery, setSearchQuery] = useState("")
+const \[dropdownOpen, setDropdownOpen] = useState(false)
+
+if (!isInitialized) return null
+
+const isActive = (path: string) => location.pathname === path
+
+const handleSearch = (e: React.FormEvent) => {
+e.preventDefault()
+if (searchQuery.trim()) {
+navigate(/search?q=${encodeURIComponent(searchQuery)})
+setSearchQuery("")
+}
+}
+
+const handleLogout = async () => {
+await logout()
+navigate("/")
+setDropdownOpen(false)
+}
+
+return ( <header className="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-dark"> <div className="container-fluid px-4"> <Link className="navbar-brand d-flex align-items-center" to="/"> <i className="bi bi-book me-2 text-primary"></i> <span className="fw-bold text-primary">WebComic</span> </Link>
+
+<button
+      className="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#navbarContent"
+    >
+      <span className="navbar-toggler-icon"></span>
+    </button>
+
+    <div className="collapse navbar-collapse" id="navbarContent">
+      <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+        <li className="nav-item">
+          <Link className={`nav-link ${isActive("/browse") ? "text-primary" : ""}`} to="/browse">
+            <i className="bi bi-grid me-1"></i> Browse
+          </Link>
+        </li>
+        <li className="nav-item">
+          <Link className={`nav-link ${isActive("/trending") ? "text-primary" : ""}`} to="/trending">
+            <i className="bi bi-graph-up me-1"></i> Trending
+          </Link>
+        </li>
+        <li className="nav-item">
+          <Link className={`nav-link ${isActive("/genres") ? "text-primary" : ""}`} to="/genres">
+            <i className="bi bi-tags me-1"></i> Genres
+          </Link>
+        </li>
+      </ul>
+
+      <form className="d-flex me-2" onSubmit={handleSearch}>
+        <div className="input-group">
+          <input
+            type="search"
+            className="form-control bg-dark-bg-lighter"
+            placeholder="Search comics..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button className="btn btn-outline-primary" type="submit">
+            <i className="bi bi-search"></i>
+          </button>
+        </div>
+      </form>
+
+      {isAuthenticated ? (
+        <div className="position-relative">
+          <button
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            className="btn btn-outline-primary d-flex align-items-center"
+          >
+            <span className="me-2">{currentUser?.username}</span>
+            <div
+              className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+              style={{ width: "30px", height: "30px" }}
+            >
+              {currentUser?.username.charAt(0).toUpperCase()}
+            </div>
+          </button>
+
+          {dropdownOpen && (
+            <ul className="dropdown-menu show position-absolute end-0 mt-2">
+              <li>
+                <Link className="dropdown-item" to="/profile" onClick={() => setDropdownOpen(false)}>
+                  <i className="bi bi-person me-2"></i> My Profile
+                </Link>
+              </li>
+              {currentUser?.role === "ROLE_CREATOR" && (
+                <>
+                  <li>
+                    <Link className="dropdown-item" to="/creator/dashboard" onClick={() => setDropdownOpen(false)}>
+                      <i className="bi bi-speedometer2 me-2"></i> Creator Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link className="dropdown-item" to="/creator/upload" onClick={() => setDropdownOpen(false)}>
+                      <i className="bi bi-cloud-upload me-2"></i> Upload Comic
+                    </Link>
+                  </li>
+                </>
+              )}
+              <li>
+                <hr className="dropdown-divider" />
+              </li>
+              <li>
+                <button className="dropdown-item" onClick={handleLogout}>
+                  <i className="bi bi-box-arrow-right me-2"></i> Logout
+                </button>
+              </li>
+            </ul>
+          )}
+        </div>
+      ) : (
+        <div className="d-flex">
+          <Link to="/login" className="btn btn-outline-primary me-2">
+            Log in
+          </Link>
+          <Link to="/register" className="btn btn-primary">
+            Sign up
+          </Link>
+        </div>
+      )}
+    </div>
+  </div>
+</header>
+
+
+)
+}
+
+export default Header
+
+"use client"
+
+import type React from "react"
+import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
+import { creatorAPI } from "../../services/api"
+import type { Comic, CreatorStats, AnalyticsData } from "../../types"
+import Loading from "../../components/commom/Loading"
+// import Loading from "../../components/common/Loading"
+
+const CreatorDashboardPage: React.FC = () => {
+const \[stats, setStats] = useState\<CreatorStats | null>(null)
+const \[analytics, setAnalytics] = useState\<AnalyticsData | null>(null)
+const \[comics, setComics] = useState\<Comic\[]>(\[])
+const \[loading, setLoading] = useState(true)
+const \[error, setError] = useState\<string | null>(null)
+const \[activeTab, setActiveTab] = useState<"overview" | "comics" | "analytics">("overview")
+
+useEffect(() => {
+const fetchDashboardData = async () => {
+try {
+setLoading(true)
+setError(null)
+
+// Fetch dashboard data
+    const dashboardResponse = await creatorAPI.getCreatorDashboard()
+    setStats(dashboardResponse.data.stats)
+    setAnalytics(dashboardResponse.data.analytics)
+
+    // Fetch creator's comics
+    const comicsResponse = await creatorAPI.getCreatorComics()
+    setComics(comicsResponse.data.content)
+  } catch (err) {
+    console.error("Error fetching dashboard data:", err)
+    setError("Failed to load dashboard data. Please try again.")
+  } finally {
+    setLoading(false)
+  }
+}
+
+fetchDashboardData()
+
+
+}, \[])
+
+if (loading) {
+return <Loading message="Loading your dashboard..." />
+}
+
+if (error) {
+return ( <div className="container py-5"> <div className="alert alert-danger">{error}</div>
+\<button className="btn btn-primary mt-3" onClick={() => window\.location.reload()}>
+Retry </button> </div>
+)
+}
+
+return ( <div className="container py-5"> <div className="d-flex justify-content-between align-items-center mb-4"> <h1 className="text-white mb-0">Creator Dashboard</h1> <Link to="/creator/upload" className="btn btn-primary"> <i className="bi bi-plus-lg me-2"></i>
+Upload New Comic </Link> </div>
+
+{/* Stats Cards */}
+  <div className="row g-4 mb-5">
+    <div className="col-md-4 col-lg-2">
+      <div className="stats-card">
+        <div className="stats-card-title">Total Comics</div>
+        <div className="stats-card-value text-white">{stats?.totalComics || 0}</div>
+      </div>
+    </div>
+    <div className="col-md-4 col-lg-2">
+      <div className="stats-card">
+        <div className="stats-card-title">Total Views</div>
+        <div className="stats-card-value text-white">{stats?.totalViews?.toLocaleString() || 0}</div>
+      </div>
+    </div>
+    <div className="col-md-4 col-lg-2">
+      <div className="stats-card">
+        <div className="stats-card-title">Total Likes</div>
+        <div className="stats-card-value text-white">{stats?.totalLikes?.toLocaleString() || 0}</div>
+      </div>
+    </div>
+    <div className="col-md-4 col-lg-2">
+      <div className="stats-card">
+        <div className="stats-card-title">Total Comments</div>
+        <div className="stats-card-value text-white">{stats?.totalComments?.toLocaleString() || 0}</div>
+      </div>
+    </div>
+    <div className="col-md-4 col-lg-2">
+      <div className="stats-card">
+        <div className="stats-card-title">Subscribers</div>
+        <div className="stats-card-value text-white">{stats?.totalSubscribers?.toLocaleString() || 0}</div>
+      </div>
+    </div>
+    <div className="col-md-4 col-lg-2">
+      <div className="stats-card">
+        <div className="stats-card-title">Revenue</div>
+        <div className="stats-card-value text-white">${stats?.totalRevenue?.toFixed(2) || "0.00"}</div>
+      </div>
+    </div>
+  </div>
+
+  {/* Tabs */}
+  <ul className="nav nav-tabs mb-4">
+    <li className="nav-item">
+      <button
+        className={`nav-link ${activeTab === "overview" ? "active" : ""}`}
+        onClick={() => setActiveTab("overview")}
+      >
+        Overview
+      </button>
+    </li>
+    <li className="nav-item">
+      <button
+        className={`nav-link ${activeTab === "comics" ? "active" : ""}`}
+        onClick={() => setActiveTab("comics")}
+      >
+        My Comics
+      </button>
+    </li>
+    <li className="nav-item">
+      <button
+        className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
+        onClick={() => setActiveTab("analytics")}
+      >
+        Analytics
+      </button>
+    </li>
+  </ul>
+
+  {/* Tab Content */}
+  {activeTab === "overview" && (
+    <div>
+      <div className="row mb-4">
+        <div className="col-lg-8">
+          <div className="card bg-dark-bg-light border-0 shadow mb-4">
+            <div className="card-body">
+              <h5 className="card-title text-white mb-3">Recent Performance</h5>
+              <div className="text-center py-5">
+                <p className="text-muted">Chart would go here in a real application</p>
+                <p className="text-muted small">Showing views and likes for the past 30 days</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-4">
+          <div className="card bg-dark-bg-light border-0 shadow mb-4">
+            <div className="card-body">
+              <h5 className="card-title text-white mb-3">Top Performing Comics</h5>
+              {comics.length === 0 ? (
+                <p className="text-muted text-center py-3">No comics yet</p>
+              ) : (
+                <div className="list-group bg-transparent">
+                  {comics.slice(0, 5).map((comic) => (
+                    <Link
+                      key={comic.id}
+                      to={`/comic/${comic.id}`}
+                      className="list-group-item list-group-item-action bg-dark-bg-lighter text-white border-dark"
+                    >
+                      <div className="d-flex align-items-center">
+                        <img
+                          src={comic.coverImage || "/placeholder.svg?height=80&width=60"}
+                          alt={comic.title}
+                          className="me-3"
+                          style={{ width: "60px", height: "80px", objectFit: "cover" }}
+                        />
+                        <div>
+                          <h6 className="mb-0">{comic.title}</h6>
+                          <div className="d-flex align-items-center text-muted small">
+                            <span className="me-2">
+                              <i className="bi bi-eye me-1"></i>
+                              {comic.views.toLocaleString()}
+                            </span>
+                            <span>
+                              <i className="bi bi-heart me-1"></i>
+                              {comic.likesCount.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card bg-dark-bg-light border-0 shadow">
+        <div className="card-body">
+          <h5 className="card-title text-white mb-3">Recent Comments</h5>
+          <div className="text-center py-5">
+            <p className="text-muted">Comments would go here in a real application</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {activeTab === "comics" && (
+    <div>
+      {comics.length === 0 ? (
+        <div className="text-center py-5">
+          <i className="bi bi-journal-x text-muted fs-1 mb-3"></i>
+          <p className="text-muted">You haven't created any comics yet.</p>
+          <Link to="/creator/upload" className="btn btn-primary mt-3">
+            Upload Your First Comic
+          </Link>
+        </div>
+      ) : (
+        <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+          {comics.map((comic) => (
+            <div key={comic.id} className="col">
+              <div className="card bg-dark-bg-light h-100 border-0 shadow">
+                <div className="position-relative">
+                  <img
+                    src={comic.coverImage || "/placeholder.svg?height=400&width=300"}
+                    alt={comic.title}
+                    className="card-img-top"
+                    style={{ height: "200px", objectFit: "cover" }}
+                  />
+                  {comic.isSubscriptionRequired && (
+                    <span className="position-absolute top-0 end-0 badge bg-warning m-2">Premium</span>
+                  )}
+                </div>
+                <div className="card-body">
+                  <h5 className="card-title text-white">{comic.title}</h5>
+                  <div className="d-flex align-items-center mb-2 text-muted small">
+                    <span className="me-3">
+                      <i className="bi bi-eye me-1"></i>
+                      {comic.views.toLocaleString()}
+                    </span>
+                    <span className="me-3">
+                      <i className="bi bi-heart me-1"></i>
+                      {comic.likesCount.toLocaleString()}
+                    </span>
+                    <span>
+                      <i className="bi bi-chat me-1"></i>
+                      {comic.commentsCount.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="card-text text-muted small">
+                    {comic.description.length > 100
+                      ? `${comic.description.substring(0, 100)}...`
+                      : comic.description}
+                  </p>
+                </div>
+                <div className="card-footer bg-transparent border-dark">
+                  <div className="d-flex justify-content-between">
+                    <Link to={`/comic/${comic.id}`} className="btn btn-sm btn-outline-primary">
+                      View
+                    </Link>
+                    <div>
+                      <Link to={`/creator/edit/${comic.id}`} className="btn btn-sm btn-outline-secondary me-2">
+                        Edit
+                      </Link>
+                      <Link to={`/creator/reorder/${comic.id}`} className="btn btn-sm btn-outline-secondary">
+                        Chapters
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )}
+
+  {activeTab === "analytics" && (
+    <div>
+      <div className="card bg-dark-bg-light border-0 shadow mb-4">
+        <div className="card-body">
+          <h5 className="card-title text-white mb-3">Views Analytics</h5>
+          <div className="text-center py-5">
+            <p className="text-muted">Analytics charts would go here in a real application</p>
+            <p className="text-muted small">Showing views, likes, and comments trends over time</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-4">
+        <div className="col-md-6">
+          <div className="card bg-dark-bg-light border-0 shadow h-100">
+            <div className="card-body">
+              <h5 className="card-title text-white mb-3">Audience Demographics</h5>
+              <div className="text-center py-5">
+                <p className="text-muted">Demographics chart would go here</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-6">
+          <div className="card bg-dark-bg-light border-0 shadow h-100">
+            <div className="card-body">
+              <h5 className="card-title text-white mb-3">Revenue Breakdown</h5>
+              <div className="text-center py-5">
+                <p className="text-muted">Revenue chart would go here</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+
+
+)
+}
+
+export default CreatorDashboardPage
+
+see all these files and tell me where the error is such that when clicked on creatordashboard button it is not working
+
+ChatGPT said:
+Thanks for sharing your code in detail. If clicking "Creator Dashboard" doesn't navigate to the /creator/dashboard page, here’s a checklist and analysis to pinpoint the issue:
+
+✅ 1. Check the Route Setup
+Ensure that you have a route defined for /creator/dashboard in your App.tsx or wherever you define routes.
+
+tsx
+Copy
+Edit
+<Route path="/creator/dashboard" element={<CreatorDashboardPage />} />
+Without this route, clicking the link won't load anything.
+
+✅ 2. Confirm the Link is Working
+You are using the following link in your Header component:
+
+tsx
+Copy
+Edit
+<Link className="dropdown-item" to="/creator/dashboard" onClick={() => setDropdownOpen(false)}>
+  <i className="bi bi-speedometer2 me-2"></i> Creator Dashboard
+</Link>
+This is correct, assuming:
+
+react-router-dom v6 is in use.
+
+BrowserRouter is properly wrapping the entire app.
+
+/creator/dashboard route exists.
+
+If nothing happens on click, use browser dev tools to check:
+
+Any console errors?
+
+Does URL change in the browser bar?
+
+✅ 3. Confirm User Role is Creator
+This part restricts visibility of the button:
+
+tsx
+Copy
+Edit
+{currentUser?.role === "ROLE_CREATOR" && (
+  <>
+    <li>
+      <Link className="dropdown-item" to="/creator/dashboard" onClick={() => setDropdownOpen(false)}>
+        <i className="bi bi-speedometer2 me-2"></i> Creator Dashboard
+      </Link>
+    </li>
+Make sure:
+
+currentUser.role is "ROLE_CREATOR" (string must match exactly).
+
+currentUser is not null and is correctly loaded by useAuth().
+
+If this check fails, the button won't render at all.
+
+You can add a quick debug log:
+
+tsx
+Copy
+Edit
+console.log(currentUser)
+✅ 4. Check React Router Setup
+Ensure you are using BrowserRouter in the root of your app:
+
+tsx
+Copy
+Edit
+import { BrowserRouter } from "react-router-dom";
+
+<BrowserRouter>
+  <App />
+</BrowserRouter>
+✅ 5. Check if CreatorDashboardPage Has Errors
+If clicking the link changes the URL but doesn't show content or shows a blank page:
+
+Check console for runtime errors inside CreatorDashboardPage.
+
+You may have an unhandled exception in your useEffect, or maybe creatorAPI calls fail.
+
+Add a console.log at the top of the component:
+
+tsx
+Copy
+Edit
+console.log("Dashboard mounted")
+If you don’t see this, then the route is not loading.
+
+✅ 6. Ensure You Didn't Miss a return
+Check the Header.tsx for early returns:
+
+tsx
+Copy
+Edit
+if (!isInitialized) return null;
+This is okay as long as isInitialized eventually becomes true. Otherwise, your Header never renders.
+
+✅ 7. Styling Issues
+Rare but possible: If the dropdown renders behind something, the click might be swallowed.
+
+Add this to check with z-index:
+
+css
+Copy
+Edit
+.dropdown-menu.show {
+  z-index: 1050;
+}
+🧪 Try This Debug Checklist:
+Visit /creator/dashboard manually in the address bar.
+
+If it works, the issue is with navigation.
+
+If it fails, your route might not be set up.
+
+Add console.log("Clicked") inside the Link onClick:
+
+tsx
+Copy
+Edit
+<Link
+  className="dropdown-item"
+  to="/creator/dashboard"
+  onClick={() => {
+    console.log("Clicked Dashboard Link")
+    setDropdownOpen(false)
+  }}
+>
+Log the full route config and currentUser state.
+
+✅ Summary Fix List:
+Problem	Fix
+Route not defined	Add <Route path="/creator/dashboard" element={<CreatorDashboardPage />} />
+Route doesn’t match exactly	Ensure exact path and no typos in route
+currentUser?.role !== "ROLE_CREATOR"	Log and confirm user role is correct
+Router setup incorrect	Ensure BrowserRouter wraps your app
+Component errors silently failing	Add console logs and error handling
+Dropdown click swallowed by z-index	Add CSS rule for .dropdown-menu.show { z-index: 1050; }
+
+Let me know what behavior you're seeing exactly — does the URL change? Is it a blank screen? Are there any console logs or errors? I can dig in deeper based on that.
+
+
+
+You said:
+<Route
+          path="/creator/dashboard"
+          element={
+            <RoleBasedRoute requiredRole="CREATOR">
+              <CreatorDashboardPage />
+            </RoleBasedRoute>
+          }
+        />
+
+while clicked on creator dashboard this is the error message in console
+
+Clicked Dashboard Link
+api.ts:45 
+            
+            
+            GET http://localhost:8080/api/comics/trending?size=6&page=0 500 (Internal Server Error)
+dispatchXhrRequest @ xhr.js:195
+xhr @ xhr.js:15
+dispatchRequest @ dispatchRequest.js:51
+Promise.then
+_request @ Axios.js:163
+request @ Axios.js:40
+Axios.<computed> @ Axios.js:213
+wrap @ bind.js:5
+getTrendingComics @ api.ts:45
+fetchData @ HomePage.tsx:24
+(anonymous) @ HomePage.tsx:38
+react-stack-bottom-frame @ react-dom-client.development.js:23949
+runWithFiberInDEV @ react-dom-client.development.js:1518
+commitHookEffectListMount @ react-dom-client.development.js:11886
+commitHookPassiveMountEffects @ react-dom-client.development.js:12024
+commitPassiveMountOnFiber @ react-dom-client.development.js:13840
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13853
+flushPassiveEffects @ react-dom-client.development.js:15737
+(anonymous) @ react-dom-client.development.js:15379
+performWorkUntilDeadline @ scheduler.development.js:45
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more
+        Don't show again
+HomePage.tsx:31  Error fetching comics: AxiosError {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
+fetchData @ HomePage.tsx:31
+await in fetchData
+(anonymous) @ HomePage.tsx:38
+react-stack-bottom-frame @ react-dom-client.development.js:23949
+runWithFiberInDEV @ react-dom-client.development.js:1518
+commitHookEffectListMount @ react-dom-client.development.js:11886
+commitHookPassiveMountEffects @ react-dom-client.development.js:12024
+commitPassiveMountOnFiber @ react-dom-client.development.js:13840
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13834
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13957
+recursivelyTraversePassiveMountEffects @ react-dom-client.development.js:13813
+commitPassiveMountOnFiber @ react-dom-client.development.js:13853
+flushPassiveEffects @ react-dom-client.development.js:15737
+(anonymous) @ react-dom-client.development.js:15379
+performWorkUntilDeadline @ scheduler.development.js:45
+api.ts:45 
+            
+            
+            GET http://localhost:8080/api/comics/trending?size=6&page=0 500 (Internal Server Error)
+dispatchXhrRequest @ xhr.js:195
+xhr @ xhr.js:15
+dispatchRequest @ dispatchRequest.js:51
+Promise.then
+_request @ Axios.js:163
+request @ Axios.js:40
+Axios.<computed> @ Axios.js:213
+wrap @ bind.js:5
+getTrendingComics @ api.ts:45
+fetchData @ HomePage.tsx:24
+(anonymous) @ HomePage.tsx:38
+react-stack-bottom-frame @ react-dom-client.development.js:23949
+runWithFiberInDEV @ react-dom-client.development.js:1518
+commitHookEffectListMount @ react-dom-client.development.js:11886
+commitHookPassiveMountEffects @ react-dom-client.development.js:12024
+reconnectPassiveEffects @ react-dom-client.development.js:14004
+doubleInvokeEffectsOnFiber @ react-dom-client.development.js:15964
+runWithFiberInDEV @ react-dom-client.development.js:1518
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+commitDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15977
+flushPassiveEffects @ react-dom-client.development.js:15747
+(anonymous) @ react-dom-client.development.js:15379
+performWorkUntilDeadline @ scheduler.development.js:45
+HomePage.tsx:31  Error fetching comics: AxiosError {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
+fetchData @ HomePage.tsx:31
+await in fetchData
+(anonymous) @ HomePage.tsx:38
+react-stack-bottom-frame @ react-dom-client.development.js:23949
+runWithFiberInDEV @ react-dom-client.development.js:1518
+commitHookEffectListMount @ react-dom-client.development.js:11886
+commitHookPassiveMountEffects @ react-dom-client.development.js:12024
+reconnectPassiveEffects @ react-dom-client.development.js:14004
+doubleInvokeEffectsOnFiber @ react-dom-client.development.js:15964
+runWithFiberInDEV @ react-dom-client.development.js:1518
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+recursivelyTraverseAndDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15925
+commitDoubleInvokeEffectsInDEV @ react-dom-client.development.js:15977
+flushPassiveEffects @ react-dom-client.development.js:15747
+(anonymous) @ react-dom-client.development.js:15379
+performWorkUntilDeadline @ scheduler.development.js:45
+
+ChatGPT said:
+Thanks for providing the full context and error logs. Here's what's actually happening:
+
+✅ What You Think Is Broken:
+You’re clicking the "Creator Dashboard", expecting to go to /creator/dashboard.
+
+❌ What Is Actually Failing:
+A 500 Internal Server Error is coming from this API call:
+
+bash
+Copy
+Edit
+GET http://localhost:8080/api/comics/trending?size=6&page=0
+This is not related to the Creator Dashboard page, but instead is likely triggered by the Home Page (HomePage.tsx) – possibly when the app navigates to / after logout, or when your route incorrectly redirects somewhere else.
+
+🔍 Breakdown of the Issue:
+Error in Console:
+
+The request to GET /api/comics/trending is returning a 500.
+
+This is most likely used in HomePage.tsx, not CreatorDashboardPage.
+
+Your Current Route Definition:
+
+tsx
+Copy
+Edit
+<Route
+  path="/creator/dashboard"
+  element={
+    <RoleBasedRoute requiredRole="CREATOR">
+      <CreatorDashboardPage />
+    </RoleBasedRoute>
+  }
+/>
+✅ This route looks fine.
+
+Your Button in Header:
+
+Clicking the "Creator Dashboard" sets the route to /creator/dashboard, and you even see "Clicked Dashboard Link" in the console.
+
+So the navigation does work.
+
+What’s likely happening:
+
+After rendering CreatorDashboardPage, something (maybe an effect from HomePage.tsx) is also running, trying to fetch /api/comics/trending.
+
+That causes the 500 error in your backend, but it’s not due to the Creator Dashboard itself.
+
+✅ Action Plan
+1. ✅ Confirm You’re Actually on /creator/dashboard
+Once you click the "Creator Dashboard", check if the URL in the address bar becomes:
+
+bash
+Copy
+Edit
+http://localhost:3000/creator/dashboard
+If yes, then routing works.
+If not, something is redirecting you away — maybe RoleBasedRoute or an auth check.
+
+2. 🔁 Check RoleBasedRoute Logic
+Double-check that your RoleBasedRoute doesn’t redirect unauthenticated or unauthorized users back to /.
+
+If it does, and you don’t have access to /creator/dashboard, it might redirect you back to the homepage, which is what triggers the broken /api/comics/trending request.
+
+3. 🔧 Fix the Server Error (Unrelated but Necessary)
+Your server is returning:
+
+pgsql
+Copy
+Edit
+500 Internal Server Error for /api/comics/trending
+Check the backend logs. Common causes:
+
+Null pointer exception
+
+DB issue
+
+Missing service layer
+
+Misconfigured query
+
+If it’s unused on the dashboard, you can delay fixing it, but you should fix it regardless.
+
+✅ Summary
+Area	Status	Notes
+Clicking "Creator Dashboard"	✅ Working	You're being navigated correctly
+Route Definition	✅ Correct	You’re using <RoleBasedRoute> properly
+Console Error (/api/comics/trending)	❌ Server error	Coming from HomePage, not Dashboard
+Suspected issue	⚠️ Role-based redirect	You might be bounced back to / silently
+
+✅ What You Should Do Next
+Log inside RoleBasedRoute to see if you’re being redirected.
+
+Add a console.log(location.pathname) in Header.tsx and CreatorDashboardPage to trace the actual navigation.
+
+Check HomePage.tsx and see where it’s calling getTrendingComics().
+
+Fix the backend error at /api/comics/trending so it doesn't cause unnecessary noise.
+
+Would you like help debugging RoleBasedRoute or fixing the backend error next?
+
+
+
+You said:
+"use client"
+
+import type React from "react"
+import { Navigate, useLocation } from "react-router-dom"
+import { useAuth } from "../../contexts/AuthContext"
+
+interface RoleBasedRouteProps {
+  children: React.ReactNode
+  requiredRole: string
+}
+
+const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({ children, requiredRole }) => {
+  const { currentUser, isAuthenticated, isInitialized } = useAuth()
+  const location = useLocation()
+
+  if (!isInitialized) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100 bg-dark">
+        <div className="spinner-border text-primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  if (currentUser?.role !== requiredRole) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
+export default RoleBasedRoute
+
+
+
+"use client"
+
+import type React from "react"
+import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
+import { comicAPI } from "../services/api"
+import type { Comic } from "../types"
+import ComicGrid from "../components/comics/ComicGrid"
+import 'bootstrap-icons/font/bootstrap-icons.css';
+import "./HomePage.css"
+
+const HomePage: React.FC = () => {
+  const [trendingComics, setTrendingComics] = useState<Comic[]>([])
+  const [recentComics, setRecentComics] = useState<Comic[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+
+        // Fetch trending comics
+        const trendingResponse = await comicAPI.getTrendingComics(6)
+        setTrendingComics(trendingResponse.data)
+
+        // Fetch recent comics
+        const recentResponse = await comicAPI.getRecentComics(0, 6)
+        setRecentComics(recentResponse.data.content)
+      } catch (err) {
+        console.error("Error fetching comics:", err)
+        setError("Failed to load comics. Please refresh the page.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
+
+  return (
+    <div>
+      {/* Hero Section */}
+      <section className="bg-gradient-primary text-white text-center">
+        <div className="container py-5">
+          <div className="py-5">
+            <div className="animate-float">
+              <h1 className="display-4 fw-bold">Discover and Share Amazing Web Comics</h1>
+              <p className="lead mt-3">
+                A platform for independent artists to showcase their creativity and for readers to explore unique stories.
+              </p>
+            </div>
+            <div className="d-flex justify-content-center gap-3 flex-wrap">
+              <Link to="/browse" className="btn btn-outline-dark btn-lg px-4">
+                <i className="bi bi-book me-2"></i>
+                Browse Comics
+              </Link>
+              <Link to="/register" className="btn btn-outline-light btn-lg px-4">
+                <i className="bi bi-lightning me-2"></i>
+                Start Creating
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Comics Section */}
+      <section className="py-5">
+        <div className="container">
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h2 className="text-primary mb-0">Featured Comics</h2>
+            <Link to="/browse" className="btn btn-outline-primary">
+              View All
+            </Link>
+          </div>
+
+          <ComicGrid
+            comics={trendingComics}
+            loading={loading}
+            error={error}
+            emptyMessage="No featured comics available at the moment."
+          />
+        </div>
+      </section>
+
+      {/* Recent Comics Section */}
+      <section className="py-5 bg-dark-bg-light">
+        <div className="container">
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h2 className="text-primary mb-0">Recently Added</h2>
+            <Link to="/browse" className="btn btn-outline-primary">
+              View All
+            </Link>
+          </div>
+
+          <ComicGrid
+            comics={recentComics}
+            loading={loading}
+            error={error}
+            emptyMessage="No recent comics available at the moment."
+          />
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-5">
+        <div className="container">
+          <h2 className="text-center text-primary mb-5">Why Choose WebComic?</h2>
+
+          <div className="row g-4">
+            <div className="col-md-4">
+              <div className="card h-100 bg-dark-bg-light border-0">
+                <div className="card-body text-center p-4">
+                  <div className="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-flex mb-3">
+                    <i className="bi bi-pencil-square fs-3"></i>
+                  </div>
+                  <h4 className="text-white">Create & Share</h4>
+                  <p className="text-muted">Upload your comics easily and share them with a global audience.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-md-4">
+              <div className="card h-100 bg-dark-bg-light border-0">
+                <div className="card-body text-center p-4">
+                  <div className="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-flex mb-3">
+                    <i className="bi bi-cash-coin fs-3"></i>
+                  </div>
+                  <h4 className="text-white">Monetize</h4>
+                  <p className="text-muted">Earn from your creativity through subscriptions and tips from readers.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-md-4">
+              <div className="card h-100 bg-dark-bg-light border-0">
+                <div className="card-body text-center p-4">
+                  <div className="rounded-circle bg-primary bg-opacity-10 p-3 d-inline-flex mb-3">
+                    <i className="bi bi-graph-up-arrow fs-3"></i>
+                  </div>
+                  <h4 className="text-white">Analytics</h4>
+                  <p className="text-muted">Track your comic's performance with detailed analytics and insights.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-5 bg-dark-bg-light">
+        <div className="container">
+          <div className="p-5 rounded-3 bg-dark-bg border-0 text-center">
+            <h2 className="text-white mb-3">Ready to Start Your Comic Journey?</h2>
+            <p className="lead text-muted mb-4">Join thousands of creators and readers on WebComic today.</p>
+            <Link to="/register" className="btn btn-primary btn-lg px-5">
+              Sign Up Now
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default HomePage
+
+these are the files you said where the error may probably happen see and tell me what is the issue
+
+ChatGPT said:
+Thanks! You've shared both:
+
+RoleBasedRoute.tsx – your route protection logic
+
+HomePage.tsx – the component where the 500 error originates
+
+From your code and earlier logs, here’s a clear diagnosis and what to do next:
+
+✅ What’s Working
+RoleBasedRoute is correctly written:
+
+It redirects to /login if not authenticated.
+
+It redirects to / if role doesn’t match.
+
+It renders children if everything is OK.
+
+So this file is not the problem.
+
+❌ Where the Error Happens
+In HomePage.tsx, inside this block:
+
+ts
+Copy
+Edit
+const trendingResponse = await comicAPI.getTrendingComics(6)
+setTrendingComics(trendingResponse.data)
+This causes the 500 Internal Server Error:
+
+txt
+Copy
+Edit
+GET http://localhost:8080/api/comics/trending?size=6&page=0 500 (Internal Server Error)
+🔍 What This Means
+You’re fetching trending comics from your backend, and your backend is crashing on this endpoint:
+
+arduino
+Copy
+Edit
+GET /api/comics/trending?size=6&page=0
+Your React app is not the problem. The backend (on port 8080) is.
+
+✅ What You Should Check in the Backend
+You need to investigate and fix the backend controller or service that handles /api/comics/trending.
+
+In Spring Boot, for example, this might look like:
+
+java
+Copy
+Edit
+@GetMapping("/api/comics/trending")
+public ResponseEntity<List<Comic>> getTrendingComics(
+    @RequestParam int size,
+    @RequestParam int page
+) {
+    // Something here is throwing an exception
+}
+🔧 Possible Causes of 500:
+Database is empty or null
+
+Incorrect query or pagination
+
+Service layer throws exception (e.g. NullPointerException)
+
+page or size handling is buggy
+
+🧪 How to Debug
+Go to your backend terminal or logs and check the full stack trace for that 500 error.
+
+Add logging in your /api/comics/trending endpoint before returning the response.
+
+Confirm the controller is working independently by hitting the URL directly in Postman or browser:
+
+bash
+Copy
+Edit
+http://localhost:8080/api/comics/trending?size=6&page=0
+✅ Temporary Fix in React (Optional)
+While backend is being fixed, you can wrap the call in a try/catch (already done) and improve the fallback UI:
+
+ts
+Copy
+Edit
+if (error) {
+  return <div className="text-danger text-center">⚠️ {error}</div>
+}
+But again, the root cause is in the backend.
+
+✅ Summary
+Area	Status	Notes
+RoleBasedRoute	✅ OK	Works as expected
+HomePage.tsx	⚠️ Frontend OK	Crashes only because backend is failing
+Backend /api/comics/trending	❌ Broken	Returns 500 error; needs debugging
+
+👉 Want Help?
+If you share your backend controller or service code for the /api/comics/trending endpoint, I can spot the bug quickly for you.
