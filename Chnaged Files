@@ -314,3 +314,18 @@ public class CreatorDashboardController {
         return ResponseEntity.ok(data);
     }
 }
+
+
+
+
+
+public int countByCurrentCreator() {
+    User currentUser = authService.getCurrentUser(); // or however you're getting the authenticated user
+    return comicRepository.findByCreator(currentUser, Pageable.unpaged()).getNumberOfElements();
+}
+
+public int getViewsByCurrentCreator() {
+    User currentUser = authService.getCurrentUser();
+    List<Comic> comics = comicRepository.findByCreator(currentUser, Pageable.unpaged()).getContent();
+    return comics.stream().mapToInt(Comic::getViews).sum();
+}
