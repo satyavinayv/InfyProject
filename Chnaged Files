@@ -278,3 +278,39 @@ Error
 fetchDashboardData	@	CreatorDashboardPage.tsx:34
 await in fetchDashboardData		
 (anonymous)	@	CreatorDashboardPage.tsx:41
+
+
+
+
+
+
+--------------+--------------+++++++
+
+package com.infy.WebComic_Backend.controller;
+
+import com.infy.WebComic_Backend.service.ComicService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/creator")
+public class CreatorDashboardController {
+
+    @Autowired
+    private ComicService comicService;
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasRole('CREATOR')")
+    public ResponseEntity<Map<String, Object>> getDashboardData() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("totalComics", comicService.countByCurrentCreator());
+        data.put("totalViews", comicService.getViewsByCurrentCreator());
+        // Add more dashboard data as needed
+        return ResponseEntity.ok(data);
+    }
+}
