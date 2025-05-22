@@ -1,0 +1,88 @@
+Dashboard mounted
+api.ts:53 
+ 
+ GET http://localhost:8080/api/comics/trending?size=6&page=0 500 (Internal Server Error)
+Promise.then		
+getTrendingComics	@	api.ts:53
+fetchData	@	HomePage.tsx:22
+(anonymous)	@	HomePage.tsx:47
+<HomePage>		
+App	@	App.tsx:46
+<App>		
+./src/index.tsx	@	index.tsx:15
+options.factory	@	react refresh:37
+__webpack_require__	@	bootstrap:22
+(anonymous)	@	startup:7
+(anonymous)	@	startup:7
+HomePage.tsx:40 
+ Error fetching comics: 
+AxiosError {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
+code
+: 
+"ERR_BAD_RESPONSE"
+config
+: 
+{transitional: {…}, adapter: Array(3), transformRequest: Array(1), transformResponse: Array(1), timeout: 0, …}
+message
+: 
+"Request failed with status code 500"
+name
+: 
+"AxiosError"
+request
+: 
+XMLHttpRequest {onreadystatechange: null, readyState: 4, timeout: 0, withCredentials: false, upload: XMLHttpRequestUpload, …}
+response
+: 
+config
+: 
+{transitional: {…}, adapter: Array(3), transformRequest: Array(1), transformResponse: Array(1), timeout: 0, …}
+data
+: 
+details
+: 
+"uri=/api/comics/trending"
+message
+: 
+"ModelMapper mapping errors:\r\n\r\n1) Converter org.modelmapper.internal.converter.MergingCollectionConverter@3546af70 failed to convert org.hibernate.collection.spi.PersistentSet to java.util.List.\r\n\r\n1 error"
+timestamp
+: 
+"2025-05-22T06:05:18.311+00:00"
+[[Prototype]]
+: 
+Object
+headers
+: 
+AxiosHeaders {cache-control: 'no-cache, no-store, max-age=0, must-revalidate', content-type: 'application/json', expires: '0', pragma: 'no-cache'}
+request
+: 
+XMLHttpRequest {onreadystatechange: null, readyState: 4, timeout: 0, withCredentials: false, upload: XMLHttpRequestUpload, …}
+status
+: 
+500
+statusText
+: 
+""
+[[Prototype]]
+: 
+Object
+status
+: 
+500
+stack
+: 
+"AxiosError: Request failed with status code 500\n    at settle (http://localhost:3000/static/js/bundle.js:14458:12)\n    at XMLHttpRequest.onloadend (http://localhost:3000/static/js/bundle.js:13085:66)\n    at Axios.request (http://localhost:3000/static/js/bundle.js:13584:41)\n    at async fetchData (http://localhost:3000/static/js/bundle.js:62614:34)"
+[[Prototype]]
+: 
+Error
+fetchData	@	HomePage.tsx:40
+await in fetchData		
+(anonymous)	@	HomePage.tsx:47
+<HomePage>		
+App	@	App.tsx:46
+<App>		
+./src/index.tsx	@	index.tsx:15
+options.factory	@	react refresh:37
+__webpack_require__	@	bootstrap:22
+(anonymous)	@	startup:7
+(anonymous)	@	startup:7
