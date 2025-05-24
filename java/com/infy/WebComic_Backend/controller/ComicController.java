@@ -25,23 +25,43 @@ public class ComicController {
  @Autowired
  private ComicService comicService;
 
+ 
  @Autowired
  private FileStorageService fileStorageService;
+ 
 
- @PostMapping
- @PreAuthorize("hasRole('CREATOR')")
- public ResponseEntity<ComicDTO> createComic(@Valid @RequestBody ComicCreateDTO comicCreateDTO) {
-     ComicDTO comicDTO = comicService.createComic(comicCreateDTO);
-     return ResponseEntity.ok(comicDTO);
+ @PostMapping(consumes = "multipart/form-data")
+ public ResponseEntity<ComicDTO> createComic(
+         @RequestParam("title") String title,
+         @RequestParam("description") String description,
+         @RequestParam(value = "genres", required = false) List<String> genres,
+         @RequestParam(value = "tags", required = false) List<String> tags,
+         @RequestParam("subscriptionRequired") boolean subscriptionRequired,
+         @RequestParam(value = "subscriptionPrice", required = false) Double subscriptionPrice,
+         @RequestPart("coverImageUrl") MultipartFile coverImageUrl
+ ) {
+     ComicCreateDTO comicCreateDTO = new ComicCreateDTO(
+             title,
+             description,
+             genres,
+             tags,
+             subscriptionRequired,
+             subscriptionPrice,
+             coverImageUrl
+     );
+
+     ComicDTO createdComic = comicService.createComic(comicCreateDTO);
+     return ResponseEntity.ok(createdComic);
  }
 
  @PutMapping("/{id}")
  @PreAuthorize("hasRole('CREATOR')")
- public ResponseEntity<ComicDTO> updateComic(@PathVariable Long id, @Valid @RequestBody ComicCreateDTO comicUpdateDTO) {
+ public ResponseEntity<ComicDTO> updateComic(@PathVariable Long id, @Valid @ModelAttribute ComicCreateDTO comicUpdateDTO) {
      ComicDTO comicDTO = comicService.updateComic(id, comicUpdateDTO);
      return ResponseEntity.ok(comicDTO);
  }
 
+ 
  @PostMapping("/{id}/cover")
  @PreAuthorize("hasRole('CREATOR')")
  public ResponseEntity<String> uploadCoverImage(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
